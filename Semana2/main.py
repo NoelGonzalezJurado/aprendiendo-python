@@ -60,3 +60,10 @@ def editar_tarea(id: int, tarea_actualizada: Tarea):
             tareas[i] = {"id": id, **tarea_actualizada.model_dump()}
             return tareas[i]
     raise HTTPException(status_code=404, detail="Tarea no encontrada")
+
+@app.get("/tareas/{id}")
+def buscar_tarea(id: int):
+    for i, tarea in enumerate (tareas):
+        if tarea ["id"] == id:
+            return tarea
+    raise HTTPException(status_code=404, detail="Tarea no encontrada")

@@ -18,8 +18,29 @@ def get_db():
 class TareaSchema(BaseModel):
     titulo: str = Field(min_length=3, max_length=100, description="Título de la tarea")
     completada: bool = Field(default=False, description="Si la tarea está completada")
-    
-@app.get("/tareas")
+    categoria_id: int | None = Field(default=None, description="ID de la categoría")
+
+class CategoriaSchema(BaseModel):
+    nombre: str = Field(min_length=3, max_length=50, description="Nombre de la categoría")
+
+class CategoriaResponse(BaseModel):
+    id: int
+    nombre: str
+
+    class Config:
+        from_attributes = True
+
+class TareaResponse(BaseModel):
+    id: int
+    titulo: str
+    completada: bool
+    categoria: CategoriaResponse | None = None
+
+    class Config:
+        from_attributes = True
+
+
+@app.get("/tareas", response_model=list[TareaResponse])
 def listar_tareas(db: Session = Depends(get_db)):
     return db.query(models.Tarea).all()
 
@@ -57,3 +78,17 @@ def editar_tarea(id: int, tarea_actualizada: TareaSchema, db: Session = Depends(
     db.commit()
     db.refresh(tarea)
     return tarea
+
+@app.post("/categorias")
+def crear_categoria(categoria: CategoriaSchema, db: Session = Depends(get_db)):
+    nueva = models.Categoria(**categoria.model_dump())
+    db.add(nueva)
+    db.commit()
+    db.refresh(nueva)
+    return nueva
+
+@app.get("/categorias")
+def listar_categorias(db: Session = Depends(get_db)):
+    return db.query(models.Categoria).all()
+
+

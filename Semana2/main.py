@@ -1,69 +1,59 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
+import models
+from database import engine, SessionLocal
+
+models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
 
-class Tarea(BaseModel):
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+class TareaSchema(BaseModel):
     titulo: str
     completada: bool = False
 
-@app.get("/")
-def inicio():
-    return {"mensaje": "Hola desde mi primera API"}
-
-@app.get("/saludo/{nombre}")
-def saludar(nombre: str):
-    return {"mensaje": f"Hola {nombre}, bienvenido a mi API"}
-
-@app.get("/clima/{ciudad}")
-def clima(ciudad: str):
-    import requests
-    respuesta = requests.get(f"https://wttr.in/{ciudad}?format=j1")
-    datos = respuesta.json()
-
-    temp = datos["current_condition"][0]["temp_C"]
-    desc = datos["current_condition"][0]["weatherDesc"][0]["value"]
-    return {"ciudad": ciudad, "temperatura": temp, "estado": desc}
-
-@app.get("/buscar")
-def buscar(ciudad: str, limite: int = 3):
-    return {
-        "ciudad": ciudad,
-        "limite": limite,
-        "mensaje": f"Buscando {limite} resultados para {ciudad}"
-    }
-
-tareas = []
+@app.get("/tareas")
+def listar_tareas(db: Session = Depends(get_db)):
+    return db.query(models.Tarea).all()
 
 @app.post("/tareas")
-def crear_tarea(tarea: Tarea):
-    nueva = {"id": len(tareas) + 1, **tarea.model_dump()}
-    tareas.append(nueva)
+def crear_tarea(tarea: TareaSchema, db: Session = Depends(get_db)):
+    nueva = models.Tarea(**tarea.model_dump())
+    db.add(nueva)
+    db.commit()
+    db.refresh(nueva)
     return nueva
 
-@app.get("/tareas")
-def listar_tareas():
-    return tareas
+@app.get("/tareas/{id}")
+def buscar_tarea(id: int, db: Session = Depends(get_db)):
+    tarea = db.query(models.Tarea).filter(models.Tarea.id == id).first()
+    if not tarea:
+        raise HTTPException(status_code=404, detail="Tarea no encontrada")
+    return tarea
 
 @app.delete("/tareas/{id}")
-def borrar_tarea(id: int):
-    for i, tarea in enumerate(tareas):
-        if tarea["id"] == id:
-            tareas.pop(i)
-            return {"mensaje": f"Tarea {id} eliminada"}
-    raise HTTPException(status_code=404, detail="Tarea no encontrada")
+def borrar_tarea(id: int, db: Session = Depends(get_db)):
+    tarea = db.query(models.Tarea).filter(models.Tarea.id == id).first()
+    if not tarea:
+        raise HTTPException(status_code=404, detail="Tarea no encontrada")
+    db.delete(tarea)
+    db.commit()
+    return {"mensaje": f"Tarea {id} eliminada"}
 
 @app.put("/tareas/{id}")
-def editar_tarea(id: int, tarea_actualizada: Tarea):
-    for i, tarea in enumerate(tareas):
-        if tarea["id"] == id:
-            tareas[i] = {"id": id, **tarea_actualizada.model_dump()}
-            return tareas[i]
-    raise HTTPException(status_code=404, detail="Tarea no encontrada")
-
-@app.get("/tareas/{id}")
-def buscar_tarea(id: int):
-    for i, tarea in enumerate (tareas):
-        if tarea ["id"] == id:
-            return tarea
-    raise HTTPException(status_code=404, detail="Tarea no encontrada")
+def editar_tarea(id: int, tarea_actualizada: TareaSchema, db: Session = Depends(get_db)):
+    tarea = db.query(models.Tarea).filter(models.Tarea.id == id).first()
+    if not tarea:
+        raise HTTPException(status_code=404, detail="Tarea no encontrada")
+    tarea.titulo = tarea_actualizada.titulo
+    tarea.completada = tarea_actualizada.completada
+    db.commit()
+    db.refresh(tarea)
+    return tarea

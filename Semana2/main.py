@@ -1,5 +1,5 @@
 from fastapi import FastAPI, HTTPException, Depends
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 import models
 from database import engine, SessionLocal
@@ -16,9 +16,9 @@ def get_db():
         db.close()
 
 class TareaSchema(BaseModel):
-    titulo: str
-    completada: bool = False
-
+    titulo: str = Field(min_length=3, max_length=100, description="Título de la tarea")
+    completada: bool = Field(default=False, description="Si la tarea está completada")
+    
 @app.get("/tareas")
 def listar_tareas(db: Session = Depends(get_db)):
     return db.query(models.Tarea).all()

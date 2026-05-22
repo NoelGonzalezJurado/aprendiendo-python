@@ -91,4 +91,10 @@ def crear_categoria(categoria: CategoriaSchema, db: Session = Depends(get_db)):
 def listar_categorias(db: Session = Depends(get_db)):
     return db.query(models.Categoria).all()
 
+@app.get("/categorias/{id}/tareas")
+def  listar_tareas_por_categoria( id: int, db: Session = Depends(get_db)):
+    categoria = db.query(models.Categoria).filter(models.Categoria.id == id).first()
+    if not categoria:
+        raise HTTPException(status_code=404, detail="Categoria no encontrada")
+    return categoria.tareas
 
